@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Admin Panel</title>
+</head>
+<body>
+  <h1>Admin – Log Purchase</h1>
+
+  <input id="item" placeholder="Item name">
+  <input id="amount" type="number" placeholder="Amount">
+  <button id="save">Save</button>
+
+  <script type="module" src="admin.js"></script>
+</body>
+</html>
