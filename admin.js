@@ -1,13 +1,17 @@
-import { db, auth } from "./firebase.js";
-import { addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js";
+document.getElementById("submit").onclick = async () => {
+  const item = document.getElementById("item").value;
+  const amount = document.getElementById("amount").value;
 
-document.getElementById("save").onclick = async () => {
-  await addDoc(collection(db, "purchases"), {
-    item: item.value,
-    amount: Number(amount.value),
-    loggedBy: auth.currentUser.uid,
-    timestamp: serverTimestamp()
-  });
+  const res = await fetch(
+    "https://gas-n-go-website.gruskinkolten.workers.dev/purchase",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include", // IMPORTANT for login
+      body: JSON.stringify({ item, amount })
+    }
+  );
 
-  alert("Purchase logged");
+  const data = await res.json();
+  alert(data.message || "Logged!");
 };
