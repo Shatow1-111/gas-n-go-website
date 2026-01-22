@@ -1,13 +1,153 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Discord Login</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gas-n-Go Staff Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .loader { border-top-color: #6366f1; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
 </head>
-<body>
-  <h1>Login</h1>
-  <button id="login">Login with Discord</button>
+<body class="bg-[#0f172a] text-slate-200 min-h-screen font-sans">
 
-  <script type="module" src="app.js"></script>
+    <div class="max-w-5xl mx-auto px-4 py-8">
+        <header class="flex justify-between items-center mb-10 pb-6 border-b border-slate-800">
+            <div>
+                <h1 class="text-3xl font-extrabold bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">
+                    Gas-n-Go
+                </h1>
+                <p class="text-slate-500 text-sm">Staff & Application Management</p>
+            </div>
+            <div id="auth-section">
+                <button onclick="login()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2 rounded-lg font-semibold transition-all shadow-lg shadow-indigo-500/20">
+                    Login with Discord
+                </button>
+            </div>
+        </header>
+
+        <main id="content">
+            <div class="flex flex-col items-center justify-center py-20 bg-slate-800/30 rounded-2xl border border-slate-800 border-dashed">
+                <div class="loader ease-linear rounded-full border-4 border-t-4 border-slate-700 h-12 w-12 mb-4"></div>
+                <p class="text-slate-400">Syncing with Gas-n-Go Worker...</p>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const WORKER_URL = "https://gas-n-go-website.gruskinkolten.workers.dev";
+
+        function login() {
+            window.location.href = `${WORKER_URL}/login`;
+        }
+
+        async function submitApp() {
+            const btn = document.getElementById('submit-btn');
+            const msg = document.getElementById('app-message').value;
+            
+            if(!msg) return alert("Please enter a message.");
+
+            btn.disabled = true;
+            btn.innerText = "Submitting...";
+
+            try {
+                const res = await fetch(`${WORKER_URL}/apply`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: msg }),
+                    credentials: 'include'
+                });
+
+                if (res.ok) {
+                    alert("Success! Your application has been sent.");
+                    document.getElementById('app-message').value = "";
+                } else {
+                    alert("Submission failed. You might need to log in again.");
+                }
+            } catch (e) {
+                alert("Network error occurred.");
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "Submit Application";
+            }
+        }
+
+        async function init() {
+            try {
+                // Check auth status by attempting to hit the admin endpoint
+                const res = await fetch(`${WORKER_URL}/applications`, { credentials: 'include' });
+                
+                if (res.status === 401) {
+                    showLoggedOutUI();
+                    return;
+                }
+
+                if (res.status === 403) {
+                    showApplicantUI();
+                } else if (res.ok) {
+                    const data = await res.json();
+                    showAdminUI(data.documents || []);
+                }
+            } catch (err) {
+                showLoggedOutUI();
+            }
+        }
+
+        function showLoggedOutUI() {
+            document.getElementById('content').innerHTML = `
+                <div class="text-center py-20">
+                    <h2 class="text-2xl font-bold mb-2">Welcome to Gas-n-Go</h2>
+                    <p class="text-slate-400 mb-8">Login to submit an application or manage the team.</p>
+                    <button onclick="login()" class="bg-slate-700 hover:bg-slate-600 px-8 py-3 rounded-xl font-bold transition">Get Started</button>
+                </div>
+            `;
+        }
+
+        function showApplicantUI() {
+            document.getElementById('auth-section').innerHTML = `<span class="bg-green-500/10 text-green-400 border border-green-500/20 px-3 py-1 rounded-full text-sm font-mono">User Mode</span>`;
+            document.getElementById('content').innerHTML = `
+                <div class="max-w-2xl mx-auto bg-slate-800/50 p-8 rounded-2xl border border-slate-700">
+                    <h2 class="text-xl font-bold mb-6">Staff Application Form</h2>
+                    <label class="block text-sm text-slate-400 mb-2">Your Pitch</label>
+                    <textarea id="app-message" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 mb-6 text-white focus:ring-2 focus:ring-indigo-500 outline-none" rows="6" placeholder="Tell us about yourself and why you want to join..."></textarea>
+                    <button id="submit-btn" onclick="submitApp()" class="w-full bg-indigo-600 hover:bg-indigo-500 py-4 rounded-xl font-bold transition shadow-lg shadow-indigo-500/30">Submit Application</button>
+                </div>
+            `;
+        }
+
+        function showAdminUI(apps) {
+            document.getElementById('auth-section').innerHTML = `<span class="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-3 py-1 rounded-full text-sm font-mono">Admin Mode</span>`;
+            
+            let rows = apps.map(app => `
+                <tr class="border-b border-slate-800 hover:bg-slate-800/30 transition">
+                    <td class="p-4 font-medium text-slate-200">${app.fields.username?.stringValue || 'User'}</td>
+                    <td class="p-4 text-slate-400">${app.fields.message?.stringValue || 'N/A'}</td>
+                    <td class="p-4 text-slate-500 text-sm">${new Date(app.fields.timestamp?.timestampValue || Date.now()).toLocaleDateString()}</td>
+                </tr>
+            `).join('');
+
+            document.getElementById('content').innerHTML = `
+                <div class="flex justify-between items-end mb-6">
+                    <h2 class="text-xl font-bold">Recent Applications</h2>
+                    <p class="text-slate-500 text-sm">${apps.length} Total</p>
+                </div>
+                <div class="overflow-hidden bg-slate-800/40 rounded-2xl border border-slate-800 shadow-2xl">
+                    <table class="w-full text-left">
+                        <thead>
+                            <tr class="bg-slate-800/80 text-slate-400 text-xs uppercase tracking-wider">
+                                <th class="p-4">Discord User</th>
+                                <th class="p-4">Message</th>
+                                <th class="p-4">Date Submitted</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-800">${rows || '<tr><td colspan="3" class="p-12 text-center text-slate-600">No applications in the system.</td></tr>'}</tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        window.onload = init;
+    </script>
 </body>
 </html>
