@@ -5,21 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gas-n-Go Staff Portal</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .loading-spinner { border-top-color: #6366f1; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
 </head>
 <body class="bg-[#0f172a] text-slate-200 min-h-screen">
+
     <div class="max-w-5xl mx-auto px-4 py-8">
         <header class="flex justify-between items-center mb-10 pb-6 border-b border-slate-800">
-            <h1 class="text-3xl font-extrabold text-indigo-400">Gas-n-Go</h1>
-            <div id="auth-section">
-                <button onclick="login()" class="bg-indigo-600 hover:bg-indigo-500 px-5 py-2 rounded-lg font-semibold transition">
-                    Login with Discord
-                </button>
+            <div>
+                <h1 class="text-3xl font-extrabold text-indigo-400">Gas-n-Go</h1>
+                <p class="text-slate-500 text-sm">Staff & Application Portal</p>
             </div>
+            <div id="auth-section">
+                </div>
         </header>
 
         <main id="content">
-            <div class="text-center py-20">
-                <p class="text-slate-400">Loading portal...</p>
+            <div class="flex justify-center py-20">
+                <div class="loading-spinner ease-linear rounded-full border-4 border-t-4 border-slate-700 h-12 w-12"></div>
             </div>
         </main>
     </div>
@@ -31,54 +36,104 @@
             window.location.href = `${WORKER_URL}/login`;
         }
 
+        // --- SUBMIT APPLICATION FUNCTION ---
+        async function submitApp() {
+            const btn = document.getElementById('submit-btn');
+            const message = document.getElementById('app-message').value;
+
+            if (!message.trim()) {
+                alert("Please write something before submitting!");
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerText = "Sending...";
+
+            try {
+                const res = await fetch(`${WORKER_URL}/apply`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: message }),
+                    credentials: 'include' // Sends the session cookie
+                });
+
+                if (res.ok) {
+                    alert("Application sent successfully!");
+                    document.getElementById('app-message').value = "";
+                } else {
+                    const errorMsg = await res.text();
+                    alert("Error: " + errorMsg);
+                }
+            } catch (err) {
+                console.error("Submit Error:", err);
+                alert("Failed to connect to the worker.");
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "Submit Application";
+            }
+        }
+
+        // --- INITIALIZE PAGE ---
         async function init() {
             try {
-                // Try fetching applications - this doubles as our login check
+                // Try fetching applications (Admin check)
                 const res = await fetch(`${WORKER_URL}/applications`, { credentials: 'include' });
                 
                 if (res.status === 401) {
-                    document.getElementById('content').innerHTML = '<p class="text-center">Please log in to continue.</p>';
-                    return;
-                }
-
-                if (res.status === 403) {
+                    showLoggedOutUI();
+                } else if (res.status === 403) {
                     showApplicantUI();
                 } else if (res.ok) {
                     const data = await res.json();
                     showAdminUI(data.documents || []);
+                } else {
+                    showLoggedOutUI();
                 }
             } catch (err) {
-                console.error(err);
-                document.getElementById('content').innerHTML = '<p class="text-center text-red-400">Error connecting to server.</p>';
+                console.error("Init Error:", err);
+                document.getElementById('content').innerHTML = `<p class="text-center text-red-400">Error connecting to server. Check console.</p>`;
             }
         }
 
+        function showLoggedOutUI() {
+            document.getElementById('auth-section').innerHTML = `<button onclick="login()" class="bg-indigo-600 hover:bg-indigo-500 px-6 py-2 rounded-lg font-bold">Login with Discord</button>`;
+            document.getElementById('content').innerHTML = `<div class="text-center py-20"><h2 class="text-xl">Please login to access the portal.</h2></div>`;
+        }
+
         function showApplicantUI() {
-            document.getElementById('auth-section').innerHTML = `<span class="text-green-400">User Mode</span>`;
+            document.getElementById('auth-section').innerHTML = `<span class="text-green-400">Logged In</span>`;
             document.getElementById('content').innerHTML = `
-                <div class="max-w-2xl mx-auto bg-slate-800 p-8 rounded-2xl">
-                    <h2 class="text-xl font-bold mb-4">Submit Application</h2>
-                    <textarea id="app-message" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 mb-4 text-white" rows="5"></textarea>
-                    <button onclick="submitApp()" class="w-full bg-indigo-600 py-3 rounded-xl font-bold">Submit</button>
-                </div>`;
+                <div class="max-w-2xl mx-auto bg-slate-800 p-8 rounded-2xl border border-slate-700">
+                    <h2 class="text-xl font-bold mb-4">Submit Staff Application</h2>
+                    <textarea id="app-message" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 mb-4 text-white focus:ring-2 focus:ring-indigo-500 outline-none" rows="6" placeholder="Why do you want to join?"></textarea>
+                    <button id="submit-btn" onclick="submitApp()" class="w-full bg-indigo-600 hover:bg-indigo-500 py-3 rounded-xl font-bold transition">Submit Application</button>
+                </div>
+            `;
         }
 
         function showAdminUI(apps) {
-            document.getElementById('auth-section').innerHTML = `<span class="text-indigo-400">Admin Mode</span>`;
+            document.getElementById('auth-section').innerHTML = `<span class="text-indigo-400 font-bold underline">Admin Panel</span>`;
             let rows = apps.map(app => `
                 <tr class="border-b border-slate-800">
-                    <td class="p-4">${app.fields.username?.stringValue || 'User'}</td>
+                    <td class="p-4">${app.fields.username?.stringValue || 'Unknown'}</td>
                     <td class="p-4">${app.fields.message?.stringValue || 'No message'}</td>
-                </tr>`).join('');
+                    <td class="p-4 text-slate-500 text-sm">${new Date(app.fields.timestamp?.timestampValue || Date.now()).toLocaleDateString()}</td>
+                </tr>
+            `).join('');
+
             document.getElementById('content').innerHTML = `
-                <h2 class="text-xl font-bold mb-4">Applications</h2>
-                <table class="w-full bg-slate-800 rounded-xl overflow-hidden text-left">
-                    <tr class="bg-slate-700">
-                        <th class="p-4">User</th>
-                        <th class="p-4">Message</th>
-                    </tr>
-                    ${rows}
-                </table>`;
+                <h2 class="text-xl font-bold mb-6">Received Applications</h2>
+                <div class="bg-slate-800 rounded-2xl overflow-hidden border border-slate-700">
+                    <table class="w-full text-left">
+                        <tr class="bg-slate-700/50 text-slate-400 text-sm">
+                            <th class="p-4">User</th>
+                            <th class="p-4">Message</th>
+                            <th class="p-4">Date</th>
+                        </tr>
+                        ${rows || '<tr><td colspan="3" class="p-10 text-center">No apps found.</td></tr>'}
+                    </table>
+                </div>
+            `;
         }
 
         window.onload = init;
