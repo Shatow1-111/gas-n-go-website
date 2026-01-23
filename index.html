@@ -6,107 +6,113 @@
     <title>Gas-n-Go Staff Portal</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-[#0f172a] text-slate-200 min-h-screen">
+<body class="bg-[#0f172a] text-slate-200 min-h-screen font-sans">
 
     <div class="max-w-5xl mx-auto px-4 py-8">
-        <header class="flex justify-between items-center mb-10 pb-6 border-b border-slate-800">
+        <header class="flex justify-between items-center mb-8 pb-6 border-b border-slate-800">
             <div>
-                <h1 class="text-3xl font-extrabold text-indigo-400">Gas-n-Go</h1>
-                <p class="text-slate-500 text-sm">Staff & Application Portal</p>
+                <h1 class="text-3xl font-black text-indigo-400 tracking-tighter italic">GAS-N-GO</h1>
+                <nav id="main-nav" class="hidden mt-4 flex gap-6">
+                    <button onclick="showPage('sales')" class="text-sm font-bold uppercase tracking-widest hover:text-indigo-400 transition">Customer Log</button>
+                    <button id="nav-apps" onclick="showPage('apps')" class="hidden text-sm font-bold uppercase tracking-widest hover:text-indigo-400 transition">Staff Apps</button>
+                </nav>
             </div>
-            <div id="auth-section" class="flex gap-4 items-center">
-                </div>
+            <div id="auth-section"></div>
         </header>
 
-        <main id="content">
-            <div class="flex justify-center py-20">
-                <p>Loading...</p>
-            </div>
+        <main id="content" class="py-10">
+            <div class="flex justify-center"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div></div>
         </main>
     </div>
 
     <script>
         const WORKER_URL = "https://gas-n-go-website.gruskinkolten.workers.dev";
-
-        function login() { window.location.href = `${WORKER_URL}/login`; }
-        
-        // --- NEW SIGN OUT FUNCTION ---
-        function logout() { window.location.href = `${WORKER_URL}/logout`; }
-
-        async function submitApp() {
-            const btn = document.getElementById('submit-btn');
-            const message = document.getElementById('app-message').value;
-            if (!message.trim()) return alert("Write something first!");
-
-            btn.disabled = true;
-            try {
-                const res = await fetch(`${WORKER_URL}/apply`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: message }),
-                    credentials: 'include'
-                });
-                if (res.ok) alert("Sent!");
-                else { const err = await res.text(); alert("Error: " + err); }
-            } catch (err) { alert("Failed to connect."); }
-            finally { btn.disabled = false; }
-        }
+        let isAdmin = false;
 
         async function init() {
             try {
                 const res = await fetch(`${WORKER_URL}/applications`, { credentials: 'include' });
                 
-                if (res.status === 401) {
-                    showLoggedOutUI();
+                if (res.status === 401) return showLoggedOutUI();
+                
+                document.getElementById('main-nav').classList.remove('hidden');
+                document.getElementById('auth-section').innerHTML = `<button onclick="location.href='${WORKER_URL}/logout'" class="bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded text-xs font-bold transition">LOGOUT</button>`;
+                
+                if (res.ok) {
+                    isAdmin = true;
+                    document.getElementById('nav-apps').classList.remove('hidden');
+                    const data = await res.json();
+                    window.apps = data.documents || [];
+                    showPage('apps');
                 } else {
-                    // Show logout button if logged in as user or admin
-                    document.getElementById('auth-section').innerHTML = `
-                        <button onclick="logout()" class="text-slate-400 hover:text-white text-sm font-medium transition">Sign Out</button>
-                    `;
-                    
-                    if (res.status === 403) {
-                        showApplicantUI();
-                    } else if (res.ok) {
-                        const data = await res.json();
-                        showAdminUI(data.documents || []);
-                    }
+                    showPage('sales');
                 }
-            } catch (err) {
-                document.getElementById('content').innerHTML = `<p class="text-center text-red-400">Connection Error</p>`;
+            } catch (err) { document.getElementById('content').innerHTML = "Server Error."; }
+        }
+
+        function showPage(page) {
+            const content = document.getElementById('content');
+            if (page === 'apps') {
+                let rows = window.apps.map(app => {
+                    const id = app.name.split('/').pop();
+                    return `<tr class="border-b border-slate-800">
+                        <td class="p-4 font-bold text-indigo-300">${app.fields.username.stringValue}</td>
+                        <td class="p-4 text-slate-400">${app.fields.message.stringValue}</td>
+                        <td class="p-4 text-right">
+                            <button onclick="deleteApp('${id}')" class="text-xs bg-red-600/20 text-red-400 border border-red-600/50 px-3 py-1 rounded hover:bg-red-600 hover:text-white transition">DELETE</button>
+                        </td>
+                    </tr>`;
+                }).join('');
+                content.innerHTML = `
+                    <h2 class="text-2xl font-bold mb-6 italic uppercase">Staff Applications</h2>
+                    <div class="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/50">
+                        <table class="w-full text-left">${rows || '<tr><td class="p-10 text-center">No apps found.</td></tr>'}</table>
+                    </div>`;
+            } else if (page === 'sales') {
+                content.innerHTML = `
+                    <div class="max-w-md mx-auto bg-slate-800/50 p-8 rounded-3xl border border-slate-700 shadow-2xl">
+                        <h2 class="text-2xl font-black mb-6 italic uppercase text-center text-green-400">Log Sale</h2>
+                        <div class="space-y-4">
+                            <input id="sale-item" placeholder="ITEM (E.G. PREMIUM GAS)" class="w-full bg-slate-900 border border-slate-700 p-4 rounded-xl focus:ring-2 focus:ring-green-500 outline-none uppercase font-bold text-sm">
+                            <input id="sale-price" placeholder="PRICE (E.G. 45.00)" class="w-full bg-slate-900 border border-slate-700 p-4 rounded-xl focus:ring-2 focus:ring-green-500 outline-none uppercase font-bold text-sm">
+                            <button onclick="logSale()" id="sale-btn" class="w-full bg-green-600 hover:bg-green-500 py-4 rounded-xl font-black transition shadow-lg shadow-green-900/20">LOG TRANSACTION</button>
+                        </div>
+                    </div>`;
             }
         }
 
+        async function logSale() {
+            const item = document.getElementById('sale-item').value;
+            const price = document.getElementById('sale-price').value;
+            if (!item || !price) return alert("Enter details!");
+            
+            const btn = document.getElementById('sale-btn');
+            btn.innerText = "SAVING..."; btn.disabled = true;
+
+            const res = await fetch(`${WORKER_URL}/log-sale`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ item, price }), credentials: 'include'
+            });
+
+            if (res.ok) {
+                alert("SALE LOGGED!");
+                document.getElementById('sale-item').value = "";
+                document.getElementById('sale-price').value = "";
+            }
+            btn.innerText = "LOG TRANSACTION"; btn.disabled = false;
+        }
+
+        async function deleteApp(id) {
+            if (!confirm("Delete this application?")) return;
+            await fetch(`${WORKER_URL}/applications/${id}`, { method: 'DELETE', credentials: 'include' });
+            init(); // Refresh page
+        }
+
         function showLoggedOutUI() {
-            document.getElementById('auth-section').innerHTML = `<button onclick="login()" class="bg-indigo-600 hover:bg-indigo-500 px-6 py-2 rounded-lg font-bold">Login with Discord</button>`;
-            document.getElementById('content').innerHTML = `<div class="text-center py-20"><h2 class="text-xl">Please login to access the portal.</h2></div>`;
-        }
-
-        function showApplicantUI() {
             document.getElementById('content').innerHTML = `
-                <div class="max-w-2xl mx-auto bg-slate-800 p-8 rounded-2xl border border-slate-700">
-                    <h2 class="text-xl font-bold mb-4 text-green-400">Submit Staff Application</h2>
-                    <textarea id="app-message" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 mb-4 text-white outline-none" rows="6" placeholder="Why do you want to join?"></textarea>
-                    <button id="submit-btn" onclick="submitApp()" class="w-full bg-indigo-600 hover:bg-indigo-500 py-3 rounded-xl font-bold">Submit Application</button>
-                </div>`;
-        }
-
-        function showAdminUI(apps) {
-            let rows = apps.map(app => `
-                <tr class="border-b border-slate-800">
-                    <td class="p-4">${app.fields.username?.stringValue || 'Unknown'}</td>
-                    <td class="p-4">${app.fields.message?.stringValue || 'No message'}</td>
-                    <td class="p-4 text-slate-500">${new Date(app.fields.timestamp?.timestampValue || Date.now()).toLocaleDateString()}</td>
-                </tr>`).join('');
-
-            document.getElementById('content').innerHTML = `
-                <h2 class="text-xl font-bold mb-6 text-indigo-300 underline">Admin Panel: Received Applications</h2>
-                <div class="bg-slate-800 rounded-2xl overflow-hidden border border-slate-700">
-                    <table class="w-full text-left">
-                        <tr class="bg-slate-700/50 text-slate-400 text-sm">
-                            <th class="p-4">User</th><th class="p-4">Message</th><th class="p-4">Date</th>
-                        </tr>
-                        ${rows || '<tr><td colspan="3" class="p-10 text-center">No apps found.</td></tr>'}
-                    </table>
+                <div class="text-center py-20">
+                    <h2 class="text-4xl font-black mb-8 italic">READY TO WORK?</h2>
+                    <button onclick="location.href='${WORKER_URL}/login'" class="bg-indigo-600 hover:bg-indigo-500 px-10 py-4 rounded-full font-black text-xl transition shadow-xl shadow-indigo-900/40">LOGIN WITH DISCORD</button>
                 </div>`;
         }
 
