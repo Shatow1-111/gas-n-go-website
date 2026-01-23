@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gas-n-Go Portal</title>
+    <title>Gas-n-Go Loyalty Portal</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-[#0f172a] text-slate-200 min-h-screen">
@@ -15,7 +15,7 @@
                 <nav id="main-nav" class="hidden mt-4 flex gap-6">
                     <button onclick="showPage('sales')" class="text-xs font-bold uppercase tracking-widest hover:text-indigo-400 transition">Log Purchase</button>
                     <button id="nav-history" onclick="fetchHistory()" class="hidden text-xs font-bold uppercase tracking-widest hover:text-indigo-400 transition">Sales History</button>
-                    <button id="nav-apps" onclick="showPage('apps')" class="hidden text-xs font-bold uppercase tracking-widest hover:text-indigo-400 transition">Staff Apps</button>
+                    <button id="nav-apps" onclick="showPage('apps')" class="hidden text-xs font-bold uppercase tracking-widest hover:text-indigo-400 transition">Loyalty Program</button>
                 </nav>
             </div>
             <div id="auth-section"></div>
@@ -65,15 +65,36 @@
             if (page === 'apps') {
                 let rows = window.apps.map(app => {
                     const id = app.name.split('/').pop();
-                    return `<tr class="border-b border-slate-800"><td class="p-4 font-bold text-indigo-300">${app.fields.username.stringValue}</td><td class="p-4 text-slate-400">${app.fields.message.stringValue}</td><td class="p-4 text-right"><button onclick="deleteApp('${id}')" class="text-xs text-red-400 hover:text-white">DELETE</button></td></tr>`;
+                    return `<tr class="border-b border-slate-800">
+                        <td class="p-4 font-bold text-indigo-300">${app.fields.username.stringValue}</td>
+                        <td class="p-4 text-slate-400">${app.fields.message.stringValue}</td>
+                        <td class="p-4 text-right">
+                            <button onclick="deleteApp('${id}')" class="text-xs bg-red-600/20 text-red-400 border border-red-600/50 px-3 py-1 rounded hover:bg-red-600 hover:text-white transition">REMOVE MEMBER</button>
+                        </td>
+                    </tr>`;
                 }).join('');
-                content.innerHTML = `<h2 class="text-2xl font-black mb-6 uppercase">Staff Applications</h2><div class="bg-slate-900/50 rounded-xl border border-slate-800 overflow-hidden"><table class="w-full text-left">${rows || '<tr><td class="p-10 text-center">None</td></tr>'}</table></div>`;
+                content.innerHTML = `
+                    <h2 class="text-2xl font-black mb-6 uppercase italic">Loyalty Program Members</h2>
+                    <div class="bg-slate-900/50 rounded-xl border border-slate-800 overflow-hidden">
+                        <table class="w-full text-left">
+                            <thead class="bg-slate-800/50 text-xs text-slate-500 uppercase font-black">
+                                <tr><th class="p-4">Customer Name</th><th class="p-4">Membership Note</th><th class="p-4"></th></tr>
+                            </thead>
+                            <tbody>${rows || '<tr><td colspan="3" class="p-10 text-center">No members registered.</td></tr>'}</tbody>
+                        </table>
+                    </div>`;
             } else if (page === 'sales') {
-                content.innerHTML = `<div class="max-w-md mx-auto bg-slate-800 p-8 rounded-3xl shadow-2xl border border-slate-700 text-center"><h2 class="text-2xl font-black mb-6 text-green-400 uppercase">Log Transaction</h2><input id="sale-customer" placeholder="CUSTOMER NAME" class="w-full bg-slate-900 border border-slate-700 p-4 rounded-xl mb-4 uppercase font-bold text-sm outline-none"><input id="sale-item" placeholder="ITEM" class="w-full bg-slate-900 border border-slate-700 p-4 rounded-xl mb-6 uppercase font-bold text-sm outline-none"><button onclick="logSale()" id="sale-btn" class="w-full bg-green-600 hover:bg-green-500 py-4 rounded-xl font-black uppercase transition">Submit Log</button></div>`;
+                content.innerHTML = `
+                    <div class="max-w-md mx-auto bg-slate-800 p-8 rounded-3xl shadow-2xl border border-slate-700 text-center">
+                        <h2 class="text-2xl font-black mb-6 text-green-400 uppercase italic">Log Transaction</h2>
+                        <input id="sale-customer" placeholder="CUSTOMER USERNAME" class="w-full bg-slate-900 border border-slate-700 p-4 rounded-xl mb-4 uppercase font-bold text-sm outline-none focus:ring-2 focus:ring-green-500">
+                        <input id="sale-item" placeholder="ITEM (E.G. FUEL, REPAIR)" class="w-full bg-slate-900 border border-slate-700 p-4 rounded-xl mb-6 uppercase font-bold text-sm outline-none focus:ring-2 focus:ring-green-500">
+                        <button onclick="logSale()" id="sale-btn" class="w-full bg-green-600 hover:bg-green-500 py-4 rounded-xl font-black uppercase transition tracking-wider">Log Purchase</button>
+                    </div>`;
             } else if (page === 'history') {
                 content.innerHTML = `
                     <div class="flex justify-between items-center mb-6">
-                        <h2 class="text-2xl font-black uppercase italic">Sales History</h2>
+                        <h2 class="text-2xl font-black uppercase italic">Purchase History</h2>
                         <input type="text" id="history-search" onkeyup="filterHistory()" placeholder="SEARCH USERNAME..." class="bg-slate-800 border border-slate-700 p-2 rounded-lg text-sm uppercase font-bold outline-none focus:ring-2 focus:ring-indigo-500">
                     </div>
                     <div class="bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden">
@@ -91,7 +112,12 @@
             return sales.map(s => {
                 const f = s.fields;
                 const date = new Date(f.timestamp.timestampValue).toLocaleDateString();
-                return `<tr class="border-b border-slate-800 text-sm"><td class="p-4 font-bold text-indigo-400">${f.employee.stringValue}</td><td class="p-4 font-bold text-green-400">${f.customer.stringValue}</td><td class="p-4">${f.item.stringValue}</td><td class="p-4 text-slate-500">${date}</td></tr>`;
+                return `<tr class="border-b border-slate-800 text-sm">
+                    <td class="p-4 font-bold text-indigo-400">${f.employee.stringValue}</td>
+                    <td class="p-4 font-bold text-green-400">${f.customer.stringValue}</td>
+                    <td class="p-4">${f.item.stringValue}</td>
+                    <td class="p-4 text-slate-500">${date}</td>
+                </tr>`;
             }).join('');
         }
 
@@ -107,21 +133,36 @@
         async function logSale() {
             const customer = document.getElementById('sale-customer').value;
             const item = document.getElementById('sale-item').value;
-            if (!customer || !item) return alert("Error");
+            if (!customer || !item) return alert("Please fill in all fields!");
+            
             const btn = document.getElementById('sale-btn');
             btn.innerText = "SAVING..."; btn.disabled = true;
-            const res = await fetch(`${WORKER_URL}/log-sale`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ customer, item }), credentials: 'include' });
-            if (res.ok) { alert("Logged!"); document.getElementById('sale-customer').value = ""; document.getElementById('sale-item').value = ""; }
-            btn.innerText = "SUBMIT LOG"; btn.disabled = false;
+
+            const res = await fetch(`${WORKER_URL}/log-sale`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ customer, item }), credentials: 'include'
+            });
+
+            if (res.ok) {
+                alert("TRANSACTION LOGGED!");
+                document.getElementById('sale-customer').value = "";
+                document.getElementById('sale-item').value = "";
+            }
+            btn.innerText = "LOG PURCHASE"; btn.disabled = false;
         }
 
         async function deleteApp(id) {
-            if (confirm("Delete?")) await fetch(`${WORKER_URL}/applications/${id}`, { method: 'DELETE', credentials: 'include' });
-            init();
+            if (!confirm("Remove this member from the Loyalty Program?")) return;
+            await fetch(`${WORKER_URL}/applications/${id}`, { method: 'DELETE', credentials: 'include' });
+            init(); 
         }
 
         function showLoggedOutUI() {
-            document.getElementById('content').innerHTML = `<div class="text-center py-20"><button onclick="location.href='${WORKER_URL}/login'" class="bg-indigo-600 hover:bg-indigo-500 px-10 py-4 rounded-full font-black text-xl transition">LOGIN WITH DISCORD</button></div>`;
+            document.getElementById('content').innerHTML = `
+                <div class="text-center py-20">
+                    <h2 class="text-4xl font-black mb-8 italic uppercase">Welcome to Gas-N-Go</h2>
+                    <button onclick="location.href='${WORKER_URL}/login'" class="bg-indigo-600 hover:bg-indigo-500 px-10 py-4 rounded-full font-black text-xl transition shadow-xl shadow-indigo-900/40">LOGIN WITH DISCORD</button>
+                </div>`;
         }
 
         window.onload = init;
