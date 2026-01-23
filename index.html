@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gas-n-Go Loyalty Portal</title>
+    <title>Gas-n-Go Portal</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-[#0f172a] text-slate-200 min-h-screen">
@@ -13,9 +13,11 @@
             <div>
                 <h1 class="text-3xl font-black text-indigo-400 italic uppercase">GAS-N-GO</h1>
                 <nav id="main-nav" class="hidden mt-4 flex gap-6">
-                    <button id="nav-log" onclick="showPage('sales')" class="text-xs font-bold uppercase tracking-widest hover:text-indigo-400 transition">Log Purchase</button>
-                    <button id="nav-history" onclick="fetchHistory()" class="hidden text-xs font-bold uppercase tracking-widest hover:text-indigo-400 transition">Sales History</button>
-                    <button id="nav-apps" onclick="showPage('apps')" class="hidden text-xs font-bold uppercase tracking-widest hover:text-indigo-400 transition">Loyalty Program</button>
+                    <button id="nav-apply" onclick="showPage('apply-form')" class="text-xs font-bold uppercase tracking-widest hover:text-indigo-400 transition">Apply</button>
+                    <button id="nav-log" onclick="showPage('sales')" class="hidden text-xs font-bold uppercase tracking-widest hover:text-indigo-400 transition">Log Sale</button>
+                    <button id="nav-history" onclick="fetchHistory()" class="hidden text-xs font-bold uppercase tracking-widest hover:text-indigo-400 transition">History</button>
+                    <button id="nav-leader" onclick="showLeaderboard()" class="hidden text-xs font-bold uppercase tracking-widest hover:text-indigo-400 transition">Leaderboard</button>
+                    <button id="nav-apps" onclick="showPage('apps')" class="hidden text-xs font-bold uppercase tracking-widest hover:text-indigo-400 transition">Loyalty List</button>
                 </nav>
             </div>
             <div id="auth-section"></div>
@@ -28,34 +30,29 @@
 
     <script>
         const WORKER_URL = "https://gas-n-go-website.gruskinkolten.workers.dev";
-        let userRole = "user";
 
         async function init() {
             try {
-                // We'll use the sales-history check to verify role (Admins can access, others 403)
                 const res = await fetch(`${WORKER_URL}/applications`, { credentials: 'include' });
-                
                 if (res.status === 401) return showLoggedOutUI();
-
-                document.getElementById('main-nav').classList.remove('hidden');
-                document.getElementById('auth-section').innerHTML = `<button onclick="location.href='${WORKER_URL}/logout'" class="bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded text-xs font-bold transition uppercase">Logout</button>`;
                 
-                if (res.ok) {
-                    // USER IS ADMIN
-                    document.getElementById('nav-apps').classList.remove('hidden');
-                    document.getElementById('nav-history').classList.remove('hidden');
+                document.getElementById('main-nav').classList.remove('hidden');
+                document.getElementById('auth-section').innerHTML = `<button onclick="location.href='${WORKER_URL}/logout'" class="bg-slate-800 px-4 py-2 rounded text-xs font-bold transition uppercase">Logout</button>`;
+                
+                if (res.ok) { // ADMIN
+                    ['nav-log','nav-history','nav-leader','nav-apps'].forEach(id => document.getElementById(id).classList.remove('hidden'));
                     const data = await res.json();
                     window.apps = data.documents || [];
                     showPage('apps');
-                } else if (res.status === 403) {
-                    // USER IS EMPLOYEE (OR REGULAR USER)
-                    showPage('sales');
+                } else { // EMPLOYEE OR USER
+                    // Check if employee by trying to hit log-sale (or just showing log)
+                    document.getElementById('nav-log').classList.remove('hidden');
+                    showPage('apply-form');
                 }
-            } catch (err) { document.getElementById('content').innerHTML = "Server Error."; }
+            } catch (err) { document.getElementById('content').innerHTML = "Error."; }
         }
 
         async function fetchHistory() {
-            document.getElementById('content').innerHTML = `<div class="text-center py-20 text-slate-500">Loading history...</div>`;
             const res = await fetch(`${WORKER_URL}/sales-history`, { credentials: 'include' });
             if (res.ok) {
                 const data = await res.json();
@@ -64,42 +61,71 @@
             }
         }
 
+        function showLeaderboard() {
+            if (!window.allSales) return fetchHistory().then(showLeaderboard);
+            const counts = {};
+            window.allSales.forEach(s => {
+                const name = s.fields.employee.stringValue;
+                counts[name] = (counts[name] || 0) + 1;
+            });
+            const sorted = Object.entries(counts).sort((a,b) => b[1] - a[1]);
+            
+            let rows = sorted.map(([name, count], i) => `
+                <tr class="border-b border-slate-800">
+                    <td class="p-4 font-black text-indigo-400">#${i+1}</td>
+                    <td class="p-4 font-bold">${name}</td>
+                    <td class="p-4 text-green-400 font-bold">${count} Sales</td>
+                </tr>`).join('');
+            
+            document.getElementById('content').innerHTML = `
+                <h2 class="text-2xl font-black mb-6 uppercase italic">Employee Leaderboard</h2>
+                <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+                    <table class="w-full text-left">${rows || '<tr><td class="p-10 text-center">No sales data.</td></tr>'}</table>
+                </div>`;
+        }
+
         function showPage(page) {
             const content = document.getElementById('content');
-            if (page === 'apps') {
-                let rows = (window.apps || []).map(app => {
-                    const id = app.name.split('/').pop();
-                    return `<tr class="border-b border-slate-800"><td class="p-4 font-bold text-indigo-300">${app.fields.username.stringValue}</td><td class="p-4 text-slate-400">${app.fields.message.stringValue}</td><td class="p-4 text-right"><button onclick="deleteApp('${id}')" class="text-xs text-red-400 border border-red-400/30 px-2 py-1 rounded">REMOVE</button></td></tr>`;
-                }).join('');
-                content.innerHTML = `<h2 class="text-2xl font-black mb-6 uppercase italic">Loyalty Members</h2><div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden"><table class="w-full text-left">${rows || '<tr><td class="p-10 text-center">None</td></tr>'}</table></div>`;
+            if (page === 'apply-form') {
+                content.innerHTML = `
+                <div class="max-w-md mx-auto bg-slate-800 p-8 rounded-3xl border border-slate-700">
+                    <h2 class="text-2xl font-black mb-6 text-indigo-400 uppercase italic">Join Loyalty Program</h2>
+                    <textarea id="apply-msg" placeholder="Tell us why you're joining..." class="w-full bg-slate-900 border border-slate-700 p-4 rounded-xl mb-6 h-32 outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+                    <button onclick="submitApply()" id="apply-btn" class="w-full bg-indigo-600 hover:bg-indigo-500 py-4 rounded-xl font-black uppercase transition">Submit Application</button>
+                </div>`;
             } else if (page === 'sales') {
-                content.innerHTML = `<div class="max-w-md mx-auto bg-slate-800 p-8 rounded-3xl border border-slate-700 text-center"><h2 class="text-2xl font-black mb-6 text-green-400 uppercase italic">Log Transaction</h2><input id="sale-customer" placeholder="CUSTOMER USERNAME" class="w-full bg-slate-900 border border-slate-700 p-4 rounded-xl mb-4 uppercase font-bold text-sm outline-none"><input id="sale-item" placeholder="ITEM" class="w-full bg-slate-900 border border-slate-700 p-4 rounded-xl mb-6 uppercase font-bold text-sm outline-none"><button onclick="logSale()" id="sale-btn" class="w-full bg-green-600 hover:bg-green-500 py-4 rounded-xl font-black uppercase transition">Log Purchase</button></div>`;
+                content.innerHTML = `<div class="max-w-md mx-auto bg-slate-800 p-8 rounded-3xl border border-slate-700 text-center"><h2 class="text-2xl font-black mb-6 text-green-400 uppercase italic">Log Transaction</h2><input id="sale-customer" placeholder="CUSTOMER NAME" class="w-full bg-slate-900 border border-slate-700 p-4 rounded-xl mb-4 outline-none uppercase font-bold text-sm"><input id="sale-item" placeholder="ITEM" class="w-full bg-slate-900 border border-slate-700 p-4 rounded-xl mb-6 outline-none uppercase font-bold text-sm"><button onclick="logSale()" id="sale-btn" class="w-full bg-green-600 hover:bg-green-500 py-4 rounded-xl font-black uppercase transition">Log Purchase</button></div>`;
+            } else if (page === 'apps') {
+                let rows = window.apps.map(app => {
+                    const id = app.name.split('/').pop();
+                    return `<tr class="border-b border-slate-800"><td class="p-4 font-bold text-indigo-300">${app.fields.username.stringValue}</td><td class="p-4 text-slate-400">${app.fields.message.stringValue}</td><td class="p-4 text-right"><button onclick="deleteApp('${id}')" class="text-xs text-red-400">REMOVE</button></td></tr>`;
+                }).join('');
+                content.innerHTML = `<h2 class="text-2xl font-black mb-6 uppercase italic">Loyalty List</h2><div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden"><table class="w-full text-left">${rows || '<tr><td class="p-10 text-center">None</td></tr>'}</table></div>`;
             } else if (page === 'history') {
-                content.innerHTML = `<div class="flex justify-between items-center mb-6"><h2 class="text-2xl font-black uppercase italic text-indigo-400">Sales History</h2><input type="text" id="history-search" onkeyup="filterHistory()" placeholder="Search..." class="bg-slate-800 border border-slate-700 p-2 rounded-lg text-xs outline-none"></div><div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden"><table class="w-full text-left" id="history-table"><thead class="bg-slate-800 text-[10px] text-slate-500 uppercase font-black"><tr><th class="p-4">Cashier</th><th class="p-4">Customer</th><th class="p-4">Item</th><th class="p-4">Date</th></tr></thead><tbody id="history-body">${renderHistoryRows(window.allSales || [])}</tbody></table></div>`;
+                content.innerHTML = `<div class="flex justify-between items-center mb-6"><h2 class="text-2xl font-black uppercase italic">History</h2><input type="text" onkeyup="filterHistory()" id="history-search" placeholder="Search..." class="bg-slate-800 p-2 rounded border border-slate-700 text-xs"></div><div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden"><table class="w-full text-left"><tbody id="history-body">${renderHistoryRows(window.allSales || [])}</tbody></table></div>`;
             }
         }
 
-        function renderHistoryRows(sales) {
-            return sales.map(s => {
-                const f = s.fields;
-                return `<tr class="border-b border-slate-800 text-sm"><td class="p-4 font-bold text-indigo-400">${f.employee.stringValue}</td><td class="p-4 font-bold text-green-400">${f.customer.stringValue}</td><td class="p-4">${f.item.stringValue}</td><td class="p-4 text-slate-500">${new Date(f.timestamp.timestampValue).toLocaleDateString()}</td></tr>`;
-            }).join('');
+        async function submitApply() {
+            const message = document.getElementById('apply-msg').value;
+            if (!message) return alert("Enter a message!");
+            const res = await fetch(`${WORKER_URL}/apply`, { method: 'POST', body: JSON.stringify({ message }), credentials: 'include' });
+            if (res.ok) { alert("Applied successfully!"); showPage('apply-form'); }
         }
 
         async function logSale() {
             const customer = document.getElementById('sale-customer').value;
             const item = document.getElementById('sale-item').value;
-            if (!customer || !item) return alert("Fill fields");
-            const btn = document.getElementById('sale-btn');
-            btn.disabled = true;
-            const res = await fetch(`${WORKER_URL}/log-sale`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ customer, item }), credentials: 'include' });
-            if (res.ok) { alert("Done!"); document.getElementById('sale-customer').value = ""; document.getElementById('sale-item').value = ""; }
-            else { alert("Permission Denied (Check Discord Role)"); }
-            btn.disabled = false;
+            const res = await fetch(`${WORKER_URL}/log-sale`, { method: 'POST', body: JSON.stringify({ customer, item }), credentials: 'include' });
+            if (res.ok) { alert("Logged!"); } else { alert("Permission Denied."); }
+        }
+
+        function renderHistoryRows(sales) {
+            return sales.map(s => `<tr class="border-b border-slate-800 text-sm"><td class="p-4 font-bold text-indigo-400">${s.fields.employee.stringValue}</td><td class="p-4 text-green-400">${s.fields.customer.stringValue}</td><td class="p-4">${s.fields.item.stringValue}</td></tr>`).join('');
         }
 
         function showLoggedOutUI() {
-            document.getElementById('content').innerHTML = `<div class="text-center py-20"><button onclick="location.href='${WORKER_URL}/login'" class="bg-indigo-600 hover:bg-indigo-500 px-10 py-4 rounded-full font-black text-xl transition">LOGIN WITH DISCORD</button></div>`;
+            document.getElementById('content').innerHTML = `<div class="text-center py-20"><button onclick="location.href='${WORKER_URL}/login'" class="bg-indigo-600 px-10 py-4 rounded-full font-black text-xl transition">LOGIN WITH DISCORD</button></div>`;
         }
 
         window.onload = init;
