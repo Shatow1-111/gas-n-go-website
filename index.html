@@ -11,9 +11,9 @@
     <div class="max-w-5xl mx-auto px-4 py-8">
         <header class="flex justify-between items-center mb-8 pb-6 border-b border-slate-800">
             <div>
-                <h1 class="text-3xl font-black text-indigo-400 tracking-tighter italic">GAS-N-GO</h1>
+                <h1 class="text-3xl font-black text-indigo-400 tracking-tighter italic uppercase">GAS-N-GO</h1>
                 <nav id="main-nav" class="hidden mt-4 flex gap-6">
-                    <button onclick="showPage('sales')" class="text-sm font-bold uppercase tracking-widest hover:text-indigo-400 transition">Customer Log</button>
+                    <button onclick="showPage('sales')" class="text-sm font-bold uppercase tracking-widest hover:text-indigo-400 transition">Log Purchase</button>
                     <button id="nav-apps" onclick="showPage('apps')" class="hidden text-sm font-bold uppercase tracking-widest hover:text-indigo-400 transition">Staff Apps</button>
                 </nav>
             </div>
@@ -32,11 +32,10 @@
         async function init() {
             try {
                 const res = await fetch(`${WORKER_URL}/applications`, { credentials: 'include' });
-                
                 if (res.status === 401) return showLoggedOutUI();
                 
                 document.getElementById('main-nav').classList.remove('hidden');
-                document.getElementById('auth-section').innerHTML = `<button onclick="location.href='${WORKER_URL}/logout'" class="bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded text-xs font-bold transition">LOGOUT</button>`;
+                document.getElementById('auth-section').innerHTML = `<button onclick="location.href='${WORKER_URL}/logout'" class="bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded text-xs font-bold transition uppercase">Logout</button>`;
                 
                 if (res.ok) {
                     isAdmin = true;
@@ -63,57 +62,49 @@
                         </td>
                     </tr>`;
                 }).join('');
-                content.innerHTML = `
-                    <h2 class="text-2xl font-bold mb-6 italic uppercase">Staff Applications</h2>
-                    <div class="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/50">
-                        <table class="w-full text-left">${rows || '<tr><td class="p-10 text-center">No apps found.</td></tr>'}</table>
-                    </div>`;
+                content.innerHTML = `<h2 class="text-2xl font-black mb-6 italic uppercase">Staff Applications</h2><div class="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/50"><table class="w-full text-left">${rows || '<tr><td class="p-10 text-center">None found.</td></tr>'}</table></div>`;
             } else if (page === 'sales') {
                 content.innerHTML = `
                     <div class="max-w-md mx-auto bg-slate-800/50 p-8 rounded-3xl border border-slate-700 shadow-2xl">
-                        <h2 class="text-2xl font-black mb-6 italic uppercase text-center text-green-400">Log Sale</h2>
+                        <h2 class="text-2xl font-black mb-6 italic uppercase text-center text-green-400">Log Transaction</h2>
                         <div class="space-y-4">
-                            <input id="sale-item" placeholder="ITEM (E.G. PREMIUM GAS)" class="w-full bg-slate-900 border border-slate-700 p-4 rounded-xl focus:ring-2 focus:ring-green-500 outline-none uppercase font-bold text-sm">
-                            <input id="sale-price" placeholder="PRICE (E.G. 45.00)" class="w-full bg-slate-900 border border-slate-700 p-4 rounded-xl focus:ring-2 focus:ring-green-500 outline-none uppercase font-bold text-sm">
-                            <button onclick="logSale()" id="sale-btn" class="w-full bg-green-600 hover:bg-green-500 py-4 rounded-xl font-black transition shadow-lg shadow-green-900/20">LOG TRANSACTION</button>
+                            <input id="sale-customer" placeholder="CUSTOMER USERNAME" class="w-full bg-slate-900 border border-slate-700 p-4 rounded-xl focus:ring-2 focus:ring-green-500 outline-none font-bold text-sm">
+                            <input id="sale-item" placeholder="ITEM (E.G. REPAIR, FUEL)" class="w-full bg-slate-900 border border-slate-700 p-4 rounded-xl focus:ring-2 focus:ring-green-500 outline-none font-bold text-sm">
+                            <button onclick="logSale()" id="sale-btn" class="w-full bg-green-600 hover:bg-green-500 py-4 rounded-xl font-black transition shadow-lg shadow-green-900/20 uppercase">Submit Log</button>
                         </div>
                     </div>`;
             }
         }
 
         async function logSale() {
+            const customer = document.getElementById('sale-customer').value;
             const item = document.getElementById('sale-item').value;
-            const price = document.getElementById('sale-price').value;
-            if (!item || !price) return alert("Enter details!");
+            if (!customer || !item) return alert("Fill in both boxes!");
             
             const btn = document.getElementById('sale-btn');
             btn.innerText = "SAVING..."; btn.disabled = true;
 
             const res = await fetch(`${WORKER_URL}/log-sale`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ item, price }), credentials: 'include'
+                body: JSON.stringify({ customer, item }), credentials: 'include'
             });
 
             if (res.ok) {
-                alert("SALE LOGGED!");
+                alert("TRANSACTION LOGGED!");
+                document.getElementById('sale-customer').value = "";
                 document.getElementById('sale-item').value = "";
-                document.getElementById('sale-price').value = "";
             }
-            btn.innerText = "LOG TRANSACTION"; btn.disabled = false;
+            btn.innerText = "SUBMIT LOG"; btn.disabled = false;
         }
 
         async function deleteApp(id) {
-            if (!confirm("Delete this application?")) return;
+            if (!confirm("Delete this?")) return;
             await fetch(`${WORKER_URL}/applications/${id}`, { method: 'DELETE', credentials: 'include' });
-            init(); // Refresh page
+            init();
         }
 
         function showLoggedOutUI() {
-            document.getElementById('content').innerHTML = `
-                <div class="text-center py-20">
-                    <h2 class="text-4xl font-black mb-8 italic">READY TO WORK?</h2>
-                    <button onclick="location.href='${WORKER_URL}/login'" class="bg-indigo-600 hover:bg-indigo-500 px-10 py-4 rounded-full font-black text-xl transition shadow-xl shadow-indigo-900/40">LOGIN WITH DISCORD</button>
-                </div>`;
+            document.getElementById('content').innerHTML = `<div class="text-center py-20"><button onclick="location.href='${WORKER_URL}/login'" class="bg-indigo-600 hover:bg-indigo-500 px-10 py-4 rounded-full font-black text-xl transition">LOGIN WITH DISCORD</button></div>`;
         }
 
         window.onload = init;
